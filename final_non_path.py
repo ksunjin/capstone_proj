@@ -1,6 +1,7 @@
 #-*- coding:utf-8 -*-
-
 #-------------------------------------------------------------------------
+#출처: github etc.. 모두 감사합니다..
+
 import face_recognition
 from mtcnn.mtcnn import MTCNN
 import tensorflow as tf
@@ -24,9 +25,9 @@ import timeit
 #-------------------------------------------------------------------------
 
 #기본설정
-BASE_DIR = "facerec1"
+BASE_DIR = "C:\\Users\\user\\Desktop\\facerec1\\"
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
-image_path = glob.glob(os.path.join("facerec1/*.jpg"))
+image_path = glob.glob(os.path.join(BASE_DIR + "capture\\*.jpg"))
 
 #탐지 모델
 detector = MTCNN()
@@ -34,7 +35,6 @@ faceCascade = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontal
 
 #변수
 PT = []
-faceTrackers = dict()
 ok_name = dict()
 oks = dict()
 crop_num = 0
@@ -50,7 +50,7 @@ def agree():
         cv2.imshow('agree', frame)
         for i in range(10):
             if cv2.waitKey(1) & 0xFF == ord('p'):
-                cv2.imwrite("facerec1/agreed_people_" + str(imgnum) + ".jpg", frame)
+                cv2.imwrite(BASE_DIR + "capture\\agreed_people_" + str(imgnum) + ".jpg", frame)
                 imgnum += 1
                 i += 1
         if imgnum == 11:
@@ -90,7 +90,7 @@ def face_rec_crop():
                     train_data = cv2.cvtColor(cropped, cv2.COLOR_BGR2RGB)
                     #cv2.imshow('c', cropped)
                     #k = cv2.waitKey(0)
-                    save_path = os.path.join("train/ok-" + str(num)+ ".jpg")
+                    save_path = os.path.join(BASE_DIR + "train\\ok_" + str(num)+ ".jpg")
                     cv2.imwrite(save_path, train_data)
                     num += 1
                     global crop_num
@@ -110,9 +110,8 @@ def preTreat(cropped_path):
         image_ = load_img(img_path)
         x = img_to_array(image_)
         x = x.reshape((1,)+x.shape)
-
-        #batch_size 1->16 정확도 차이
-        for batch in enumerate(train_aug_gen.flow(x, batch_size = 16, save_to_dir = "train", save_prefix= "ok", save_format = 'jpg', shuffle=False)):
+        
+        for batch in enumerate(train_aug_gen.flow(x, batch_size = 16, save_to_dir =  BASE_DIR + "train", save_prefix= "ok", save_format = 'jpg', shuffle=False)):
             i += 1
             if i > 30: #better than 10
                 break
@@ -181,11 +180,11 @@ def preprocess_image(image_path):
 
 #예측
 def predict():
-    ok_pictures = "train"
+    ok_pictures = "C:\\Users\\user\\Desktop\\facerec1\\train"
 
     for file in listdir(ok_pictures):
         ok, extension = file.split(".")
-        oks[ok] = model.predict(preprocess_image("train/%s.jpg" % (ok)), steps=1)[0,:]
+        oks[ok] = model.predict(preprocess_image("C:\\Users\\user\\Desktop\\facerec1\\train\\%s.jpg" % (ok)), steps=1)[0,:]
 
 #유사도 측정
 def findCosineSimilarity(source_representation, test_representation):
@@ -203,10 +202,13 @@ def naming(ok_name, fid):
 def livestream():
     color = (67, 67, 67)
     rectangleColor = (0,165,255)
+    
+    video_capture = cv2.VideoCapture(0)
+
     frameCounter = 0
     currentFaceID = 0
 
-    video_capture = cv2.VideoCapture(0)
+    faceTrackers = {}
     cv2.startWindowThread()
 
     while True:
@@ -226,7 +228,7 @@ def livestream():
             print("Removing fid " + str(fid) + " from list of trackers")
             faceTrackers.pop( fid , None )
 
-        #10 프레임씩 측정
+        #20 프레임씩 측정
         if (frameCounter % 20) == 0:
             #faces = faceCascade.detectMultiScale(frame, 1.3, 5)
             #harr 보다 위에서 썼던 mtcnn을 사용하는 게 탐지 하는 데에 정확함
@@ -297,7 +299,7 @@ def livestream():
 
             cv2.rectangle(baseImage, (t_x, t_y), (t_x + t_w , t_y + t_h),rectangleColor ,2)
 
-            if fid in faceTrackers.keys():
+            if fid in ok_name.keys():
                 if w > 130:
                     detected_face = baseImage[y:y+h, x:x+w]
                     detected_face = cv2.resize(detected_face, (224, 224))
@@ -324,11 +326,12 @@ def livestream():
                         
                         else:
                             cv2.putText(baseImage, 'Passerby', (int(t_x + t_w/2), int(t_y)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
+                            
                             passerby = baseImage[y:y+h, x: x+w]
                             kernel = np.ones((5,5), np.float32)/25
                             blur = cv2.filter2D(passerby, -1, kernel)
                             baseImage[y:y+h, x: x+w] = blur
-
+                            
             else:
                 cv2.putText(baseImage, "Detecting..." , 
                             (int(t_x + t_w/2), int(t_y)), 
@@ -345,7 +348,7 @@ def livestream():
     cv2.destroyAllWindows()
 
 if __name__ == '__main__':
-    start = timeit.default_timer()
+    
     print("\n [INFO] Cheeze! Please look at the camera for a moment")
     agree()
     print("\n [INFO] Processing ...")
@@ -353,16 +356,18 @@ if __name__ == '__main__':
     print("\n [INFO] Image Processing ...")
     preTreat(PT)
     print("\n [INFO] Image Data Generating finish")
-    
+
+    start = timeit.default_timer()
     print("\n [INFO] model loading...")
     model = load_model()
+    stop = timeit.default_timer()
+    print(stop - start)
+    print("\n [INFO] model predicting...")
     predict()
     print("\n [INFO] It's almost over..")
+
     print("\n [INFO] Start live straming...")
     livestream()
     
-    stop = timeit.default_timer()
-    print(stop - start)
 
 
-#출처: github etc.. 감사합니다.

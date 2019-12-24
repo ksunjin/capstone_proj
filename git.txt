@@ -1,0 +1,2 @@
+git remote add origin https://github.com/sunjinkimJ/capstone_proj.git
+git push -u origin master
